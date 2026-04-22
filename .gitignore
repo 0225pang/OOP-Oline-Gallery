@@ -1,0 +1,43 @@
+# --- OS / Editor ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.iml
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Node / Frontend ---
+node_modules/
+dist/
+.vite/
+coverage/
+
+# --- Java / Maven / Spring ---
+target/
+*.class
+
+# --- Android / Gradle ---
+.gradle/
+local.properties
+**/build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# --- Archives / binaries ---
+*.zip
+*.apk
+*.aab
+
+# --- Env / secrets ---
+.env
+.env.*
+
