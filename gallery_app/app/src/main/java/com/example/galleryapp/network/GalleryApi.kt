@@ -6,10 +6,12 @@ import okhttp3.RequestBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
+import retrofit2.http.Query
 
 data class FileInfo(
     val fileName: String?,
@@ -33,6 +35,9 @@ interface GalleryApi {
 
     @GET("file/all")
     suspend fun getAllFiles(): List<FileInfo>
+
+    @DELETE("file/delete")
+    suspend fun deleteFile(@Query("fileName") fileName: String): UploadResult
 }
 
 object ApiClient {

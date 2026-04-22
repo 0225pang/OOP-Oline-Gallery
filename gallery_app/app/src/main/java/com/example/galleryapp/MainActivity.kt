@@ -22,8 +22,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -35,6 +35,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -198,19 +199,19 @@ private fun GalleryAppScreen(
                 NavigationBarItem(
                     selected = selectedTab == MainTab.ALBUM,
                     onClick = { selectedTab = MainTab.ALBUM },
-                    icon = { androidx.compose.material3.Icon(Icons.Rounded.Cloud, contentDescription = "album") },
+                    icon = { Icon(Icons.Rounded.Cloud, contentDescription = "album") },
                     label = { Text(MainTab.ALBUM.title) }
                 )
                 NavigationBarItem(
                     selected = selectedTab == MainTab.UPLOAD,
                     onClick = { selectedTab = MainTab.UPLOAD },
-                    icon = { androidx.compose.material3.Icon(Icons.Rounded.CloudUpload, contentDescription = "upload") },
+                    icon = { Icon(Icons.Rounded.CloudUpload, contentDescription = "upload") },
                     label = { Text(MainTab.UPLOAD.title) }
                 )
                 NavigationBarItem(
                     selected = selectedTab == MainTab.SETTINGS,
                     onClick = { selectedTab = MainTab.SETTINGS },
-                    icon = { androidx.compose.material3.Icon(Icons.Rounded.Settings, contentDescription = "settings") },
+                    icon = { Icon(Icons.Rounded.Settings, contentDescription = "settings") },
                     label = { Text(MainTab.SETTINGS.title) }
                 )
             }
@@ -233,7 +234,9 @@ private fun GalleryAppScreen(
             when (selectedTab) {
                 MainTab.ALBUM -> AlbumTab(
                     uiState = uiState,
-                    onRefresh = { viewModel.loadImages() }
+                    onRefresh = { viewModel.loadImages() },
+                    onSave = { fileInfo -> viewModel.saveOnlineImage(context, fileInfo) },
+                    onDelete = { fileInfo -> viewModel.deleteOnlineImage(fileInfo) }
                 )
 
                 MainTab.UPLOAD -> UploadTab(
@@ -254,7 +257,14 @@ private fun GalleryAppScreen(
 }
 
 @Composable
-private fun AlbumTab(uiState: GalleryUiState, onRefresh: () -> Unit) {
+private fun AlbumTab(
+    uiState: GalleryUiState,
+    onRefresh: () -> Unit,
+    onSave: (FileInfo) -> Unit,
+    onDelete: (FileInfo) -> Unit
+) {
+    var selectedImage by remember { mutableStateOf<FileInfo?>(null) }
+
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         Button(modifier = Modifier.weight(1f), onClick = onRefresh) {
             Text("刷新在线相册")
@@ -273,7 +283,72 @@ private fun AlbumTab(uiState: GalleryUiState, onRefresh: () -> Unit) {
         modifier = Modifier.fillMaxSize()
     ) {
         items(uiState.images, key = { it.fileName ?: it.hashCode() }) { item ->
-            OnlineImageCard(item = item, baseUrl = uiState.backendBaseUrl)
+            OnlineImageCard(
+                item = item,
+                baseUrl = uiState.backendBaseUrl,
+                onClick = { selectedImage = item }
+            )
+        }
+    }
+
+    if (selectedImage != null) {
+        OnlineImagePreviewDialog(
+            fileInfo = selectedImage!!,
+            baseUrl = uiState.backendBaseUrl,
+            onDismiss = { selectedImage = null },
+            onSave = {
+                onSave(selectedImage!!)
+            },
+            onDelete = {
+                onDelete(selectedImage!!)
+                selectedImage = null
+            }
+        )
+    }
+}
+
+@Composable
+private fun OnlineImagePreviewDialog(
+    fileInfo: FileInfo,
+    baseUrl: String,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+    onDelete: () -> Unit
+) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                val fileName = fileInfo.fileName ?: ""
+                val imageUrl = "${baseUrl}file/${Uri.encode(fileName)}"
+                Text("图片预览", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = fileName,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(320.dp)
+                        .background(Color(0xFFE0E0E0)),
+                    contentScale = ContentScale.Fit
+                )
+                Text(fileName, style = MaterialTheme.typography.bodySmall)
+                if (!fileInfo.info.isNullOrBlank()) {
+                    Text(fileInfo.info, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Button(modifier = Modifier.weight(1f), onClick = onSave) {
+                        Text("保存到相册")
+                    }
+                    Button(modifier = Modifier.weight(1f), onClick = onDelete) {
+                        Text("删除图片")
+                    }
+                }
+                Button(modifier = Modifier.fillMaxWidth(), onClick = onDismiss) {
+                    Text("关闭")
+                }
+            }
         }
     }
 }
@@ -360,10 +435,14 @@ private fun SettingsTab(
 }
 
 @Composable
-private fun OnlineImageCard(item: FileInfo, baseUrl: String) {
+private fun OnlineImageCard(
+    item: FileInfo,
+    baseUrl: String,
+    onClick: () -> Unit
+) {
     val fileName = item.fileName ?: ""
     val url = "${baseUrl}file/${Uri.encode(fileName)}"
-    Card {
+    Card(onClick = onClick) {
         Column(modifier = Modifier.padding(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             AsyncImage(
                 model = url,
@@ -462,6 +541,43 @@ class GalleryViewModel(private val repository: GalleryRepository) : ViewModel() 
                 _uiState.value = _uiState.value.copy(
                     loading = false,
                     message = "上传失败: ${result.exceptionOrNull()?.message}"
+                )
+            }
+        }
+    }
+
+    fun deleteOnlineImage(fileInfo: FileInfo) {
+        val fileName = fileInfo.fileName
+        if (fileName.isNullOrBlank()) {
+            showMessage("缺少文件名，无法删除")
+            return
+        }
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(loading = true)
+            val result = repository.deleteImage(fileName)
+            if (result.isSuccess && result.getOrNull()?.succeed == true) {
+                _uiState.value = _uiState.value.copy(loading = false, message = "删除成功: $fileName")
+                loadImages()
+            } else {
+                val reason = result.getOrNull()?.message ?: result.exceptionOrNull()?.message
+                _uiState.value = _uiState.value.copy(loading = false, message = "删除失败: $reason")
+            }
+        }
+    }
+
+    fun saveOnlineImage(context: Context, fileInfo: FileInfo) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(loading = true)
+            val result = repository.saveRemoteImageToAlbum(context, fileInfo)
+            if (result.isSuccess) {
+                _uiState.value = _uiState.value.copy(
+                    loading = false,
+                    message = "已保存到本地相册: ${result.getOrNull()}"
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(
+                    loading = false,
+                    message = "保存失败: ${result.exceptionOrNull()?.message}"
                 )
             }
         }
